@@ -6,6 +6,7 @@ import joblib
 from datetime import datetime
 import traceback
 import os
+import sys
 
 app = Flask(__name__)
 CORS(app)
@@ -13,34 +14,87 @@ CORS(app)
 # Global variable to store model
 model_package = None
 
-import os
-import joblib
-
 def load_model():
     global model_package
     try:
+        # Get the absolute path of the current script
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        primary_path = os.path.join(base_dir, 'tttf_xgb_model_enhanced.pkl')
-        backup_path = os.path.join(base_dir, 'tttf_xgb_model_enhanced_backup.pkl')
-
-        print(f"📦 Trying primary model: {primary_path}")
-        model_package = joblib.load(primary_path)
-        print("✅ Primary model loaded successfully.")
-        return True
-    except FileNotFoundError:
-        print("❌ Primary model not found.")
+        
+        # Print debugging information
+        print(f"🔍 Script directory: {base_dir}")
+        print(f"🔍 Current working directory: {os.getcwd()}")
+        print(f"🔍 Python path: {sys.path}")
+        
+        # List all files in the directory
         try:
-            print(f"📦 Trying backup model: {backup_path}")
-            model_package = joblib.load(backup_path)
-            print("✅ Backup model loaded successfully.")
-            return True
-        except FileNotFoundError:
-            print("❌ Backup model also not found.")
-            return False
+            files = os.listdir(base_dir)
+            print(f"🔍 Files in script directory: {files}")
+            pkl_files = [f for f in files if f.endswith('.pkl')]
+            print(f"🔍 PKL files found: {pkl_files}")
+        except Exception as e:
+            print(f"❌ Error listing files: {e}")
+        
+        # Try multiple possible model file names and locations
+        possible_paths = [
+            os.path.join(base_dir, 'tttf_xgb_model_enhanced.pkl'),
+            os.path.join(base_dir, 'tttf_xgb_model_enhanced_backup.pkl'),
+            os.path.join(os.getcwd(), 'tttf_xgb_model_enhanced.pkl'),
+            os.path.join(os.getcwd(), 'tttf_xgb_model_enhanced_backup.pkl'),
+            'tttf_xgb_model_enhanced.pkl',  # Relative path
+            'tttf_xgb_model_enhanced_backup.pkl'  # Relative path
+        ]
+        
+        for i, model_path in enumerate(possible_paths):
+            try:
+                print(f"📦 Attempt {i+1}: Trying model path: {model_path}")
+                print(f"📦 Path exists: {os.path.exists(model_path)}")
+                
+                if os.path.exists(model_path):
+                    print(f"📦 File size: {os.path.getsize(model_path)} bytes")
+                    model_package = joblib.load(model_path)
+                    print("✅ Model loaded successfully!")
+                    
+                    # Validate model package
+                    if validate_model_package():
+                        return True
+                    else:
+                        print("❌ Model validation failed, trying next path...")
+                        model_package = None
+                        continue
+                else:
+                    print(f"❌ File does not exist: {model_path}")
+                    
+            except FileNotFoundError:
+                print(f"❌ File not found: {model_path}")
+                continue
+            except Exception as e:
+                print(f"❌ Error loading model from {model_path}: {e}")
+                continue
+        
+        print("❌ All model loading attempts failed")
+        return False
+        
     except Exception as e:
-        print(f"🔥 Unexpected model load error: {e}")
+        print(f"🔥 Unexpected error in load_model: {e}")
+        print(f"🔥 Traceback: {traceback.format_exc()}")
         return False
 
+def validate_model_package():
+    """Validate that the loaded model package has required components"""
+    if not model_package:
+        print("❌ Model package is None")
+        return False
+    
+    required_keys = ['model', 'feature_names', 'target_names']
+    missing_keys = [key for key in required_keys if key not in model_package]
+    
+    if missing_keys:
+        print(f"❌ Model package missing required keys: {missing_keys}")
+        print(f"🔍 Available keys: {list(model_package.keys())}")
+        return False
+    
+    print(f"✅ Model package validated with keys: {list(model_package.keys())}")
+    return True
 
 def get_feature_info():
     """Get feature information for the frontend"""
@@ -374,13 +428,13 @@ def performance():
 
 @app.route('/api/status')
 def status():
+    """Check application status"""
     model_loaded = model_package is not None
-    return jsonify({
+    status_info = {
         'status': 'running',
         'model_loaded': model_loaded,
         'version': '2.0_enhanced' if model_loaded else None
-    })
-
+    }
     
     if model_loaded:
         status_info['feature_count'] = len(model_package.get('feature_names', []))
@@ -395,14 +449,23 @@ def debug():
     debug_info = {
         'model_loaded': model_package is not None,
         'current_directory': os.getcwd(),
-        'script_directory': os.path.dirname(os.path.abspath(__file__))
+        'script_directory': os.path.dirname(os.path.abspath(__file__)),
+        'python_version': sys.version,
+        'environment_variables': dict(os.environ)
     }
     
     try:
         # List files in current directory
-        files = os.listdir(os.path.dirname(os.path.abspath(__file__)))
-        debug_info['files_in_directory'] = files
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        files = os.listdir(script_dir)
+        debug_info['files_in_script_directory'] = files
         debug_info['pkl_files'] = [f for f in files if f.endswith('.pkl')]
+        
+        # Also check current working directory
+        cwd_files = os.listdir(os.getcwd())
+        debug_info['files_in_cwd'] = cwd_files
+        debug_info['pkl_files_in_cwd'] = [f for f in cwd_files if f.endswith('.pkl')]
+        
     except Exception as e:
         debug_info['directory_error'] = str(e)
     
@@ -413,20 +476,23 @@ def debug():
     
     return jsonify(debug_info)
 
+# Load model when the module is imported (for production servers)
+print("🚀 Initializing Enhanced TTTF Prediction Web API")
+print("=" * 50)
+
+# Try to load model immediately
+if load_model():
+    print("✅ Enhanced model loaded successfully during initialization!")
+    if model_package:
+        feature_count = len(model_package.get('feature_names', []))
+        target_count = len(model_package.get('target_names', []))
+        print(f"📊 Features: {feature_count}, Targets: {target_count}")
+else:
+    print("❌ Failed to load model during initialization!")
+    print("   Check the /api/debug endpoint for more information.")
+
 if __name__ == '__main__':
-    print("🚀 Starting Enhanced TTTF Prediction Web API")
-    print("=" * 50)
-
-    # Load model on startup
-    if load_model():
-        print("✅ Enhanced model loaded successfully!")
-        if model_package:
-            feature_count = len(model_package.get('feature_names', []))
-            target_count = len(model_package.get('target_names', []))
-            print(f"📊 Features: {feature_count}, Targets: {target_count}")
-    else:
-        print("❌ Failed to load model!")
-        print("   Please check the debug endpoint for more information.")
-
-    print("🌐 Starting Flask server...")
+    print("🌐 Starting Flask development server...")
     app.run(debug=True, host='0.0.0.0', port=5000)
+else:
+    print("🌐 Running in production mode (WSGI server)")
