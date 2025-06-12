@@ -13,88 +13,33 @@ CORS(app)
 # Global variable to store model
 model_package = None
 
+import os
+import joblib
+
 def load_model():
-    """Load the enhanced model package safely on Render with detailed logging"""
     global model_package
-    
-    print("🔍 Starting model loading process...")
-    
     try:
-        # Get current directory and list files
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        print(f"📁 Base directory: {base_dir}")
-        
-        # List all files in the directory
+        primary_path = os.path.join(base_dir, 'tttf_xgb_model_enhanced.pkl')
+        backup_path = os.path.join(base_dir, 'tttf_xgb_model_enhanced_backup.pkl')
+
+        print(f"Trying to load model from: {primary_path}")
+        model_package = joblib.load(primary_path)
+        print("✅ Model loaded successfully.")
+        return True
+    except FileNotFoundError:
         try:
-            files_in_dir = os.listdir(base_dir)
-            print(f"📋 Files in directory: {files_in_dir}")
-            
-            # Look for .pkl files specifically
-            pkl_files = [f for f in files_in_dir if f.endswith('.pkl')]
-            print(f"🔍 Found .pkl files: {pkl_files}")
-        except Exception as e:
-            print(f"❌ Error listing directory contents: {e}")
-        
-        # Try multiple possible model file names
-        possible_model_names = [
-            'tttf_xgb_model_enhanced.pkl',
-            'tttf_xgb_model_enhanced_backup.pkl',
-            'tttf_gb_model_enhanced.pkl',  # You mentioned this in your message
-            'model.pkl',
-            'tttf_model.pkl'
-        ]
-        
-        for model_name in possible_model_names:
-            model_path = os.path.join(base_dir, model_name)
-            print(f"🔍 Trying to load model from: {model_path}")
-            print(f"📄 File exists: {os.path.exists(model_path)}")
-            
-            if os.path.exists(model_path):
-                try:
-                    # Check file size
-                    file_size = os.path.getsize(model_path) / (1024 * 1024)  # MB
-                    print(f"📊 File size: {file_size:.2f} MB")
-                    
-                    # Try to load the model
-                    print(f"⏳ Loading model: {model_name}")
-                    model_package = joblib.load(model_path)
-                    
-                    # Verify model structure
-                    if isinstance(model_package, dict):
-                        keys = list(model_package.keys())
-                        print(f"✅ Model loaded successfully! Keys: {keys}")
-                        
-                        # Check required components
-                        required_keys = ['model', 'feature_names', 'target_names']
-                        missing_keys = [key for key in required_keys if key not in model_package]
-                        
-                        if missing_keys:
-                            print(f"⚠️ Missing required keys: {missing_keys}")
-                        else:
-                            print(f"✅ All required components present")
-                            feature_count = len(model_package.get('feature_names', []))
-                            target_count = len(model_package.get('target_names', []))
-                            print(f"📊 Features: {feature_count}, Targets: {target_count}")
-                        
-                        return True
-                    else:
-                        print(f"❌ Model package is not a dictionary: {type(model_package)}")
-                        model_package = None
-                        
-                except Exception as load_error:
-                    print(f"❌ Error loading {model_name}: {load_error}")
-                    print(f"🔍 Error type: {type(load_error)}")
-                    continue
-            else:
-                print(f"❌ File not found: {model_path}")
-        
-        print("❌ No valid model file found!")
-        return False
-        
+            print(f"Primary not found. Trying backup: {backup_path}")
+            model_package = joblib.load(backup_path)
+            print("✅ Backup model loaded.")
+            return True
+        except FileNotFoundError:
+            print("❌ Both model files not found.")
+            return False
     except Exception as e:
-        print(f"❌ Unexpected error during model loading: {e}")
-        print(f"🔍 Error traceback: {traceback.format_exc()}")
+        print(f"🔥 Unexpected error during model loading: {e}")
         return False
+
 
 def get_feature_info():
     """Get feature information for the frontend"""
@@ -428,14 +373,13 @@ def performance():
 
 @app.route('/api/status')
 def status():
-    """Get API status"""
     model_loaded = model_package is not None
-    
-    status_info = {
+    return jsonify({
         'status': 'running',
         'model_loaded': model_loaded,
         'version': '2.0_enhanced' if model_loaded else None
-    }
+    })
+
     
     if model_loaded:
         status_info['feature_count'] = len(model_package.get('feature_names', []))
