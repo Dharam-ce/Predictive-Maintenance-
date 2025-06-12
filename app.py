@@ -16,30 +16,32 @@ model_package = None
 import os
 import joblib
 
+import os
+import joblib
+
 def load_model():
-    """Load the enhanced model package safely using absolute paths"""
+    """Load the enhanced model package safely on Render"""
     global model_package
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-    primary_path = os.path.join(BASE_DIR, 'tttf_xgb_model_enhanced.pkl')
-    backup_path = os.path.join(BASE_DIR, 'tttf_xgb_model_enhanced_backup.pkl')
-
     try:
-        print(f"Trying to load model from {primary_path}")
-        model_package = joblib.load(primary_path)
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(base_dir, 'tttf_xgb_model_enhanced.pkl')
+        backup_path = os.path.join(base_dir, 'tttf_xgb_model_enhanced_backup.pkl')
+
+        print(f"Trying to load model from: {model_path}")
+        model_package = joblib.load(model_path)
         return True
     except FileNotFoundError:
         try:
-            print(f"Primary not found. Trying backup: {backup_path}")
+            print(f"Primary model not found. Trying backup: {backup_path}")
             model_package = joblib.load(backup_path)
             return True
         except FileNotFoundError:
-            print("Both model files not found.")
+            print("Backup model file also not found.")
             return False
     except Exception as e:
-        print(f"Error loading model: {e}")
+        print(f"Unexpected error during model loading: {e}")
         return False
-
+    
 
 
 def get_feature_info():
