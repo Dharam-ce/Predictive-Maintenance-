@@ -23,21 +23,22 @@ def load_model():
         primary_path = os.path.join(base_dir, 'tttf_xgb_model_enhanced.pkl')
         backup_path = os.path.join(base_dir, 'tttf_xgb_model_enhanced_backup.pkl')
 
-        print(f"Trying to load model from: {primary_path}")
+        print(f"📦 Trying primary model: {primary_path}")
         model_package = joblib.load(primary_path)
-        print("✅ Model loaded successfully.")
+        print("✅ Primary model loaded successfully.")
         return True
     except FileNotFoundError:
+        print("❌ Primary model not found.")
         try:
-            print(f"Primary not found. Trying backup: {backup_path}")
+            print(f"📦 Trying backup model: {backup_path}")
             model_package = joblib.load(backup_path)
-            print("✅ Backup model loaded.")
+            print("✅ Backup model loaded successfully.")
             return True
         except FileNotFoundError:
-            print("❌ Both model files not found.")
+            print("❌ Backup model also not found.")
             return False
     except Exception as e:
-        print(f"🔥 Unexpected error during model loading: {e}")
+        print(f"🔥 Unexpected model load error: {e}")
         return False
 
 
