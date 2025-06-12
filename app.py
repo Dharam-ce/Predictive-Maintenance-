@@ -13,20 +13,33 @@ CORS(app)
 model_package = None
 
 
+import os
+import joblib
+
 def load_model():
-    """Load the enhanced model package"""
+    """Load the enhanced model package safely using absolute paths"""
     global model_package
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+    primary_path = os.path.join(BASE_DIR, 'tttf_xgb_model_enhanced.pkl')
+    backup_path = os.path.join(BASE_DIR, 'tttf_xgb_model_enhanced_backup.pkl')
+
     try:
-        model_package = joblib.load('tttf_xgb_model_enhanced.pkl')
+        print(f"Trying to load model from {primary_path}")
+        model_package = joblib.load(primary_path)
         return True
     except FileNotFoundError:
         try:
-            model_package = joblib.load('tttf_xgb_model_enhanced_backup.pkl')
+            print(f"Primary not found. Trying backup: {backup_path}")
+            model_package = joblib.load(backup_path)
             return True
         except FileNotFoundError:
+            print("Both model files not found.")
             return False
-    except Exception:
+    except Exception as e:
+        print(f"Error loading model: {e}")
         return False
+
 
 
 def get_feature_info():
